@@ -1,0 +1,2 @@
+# pytest-verify
+pytest plugin
