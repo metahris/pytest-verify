@@ -1,9 +1,9 @@
 pytest-verify
 =============
 
-**pytest-verify** is a snapshot testing plugin for **pytest** that helps you verify that your test outputs remain consistent across runs.
+**pytest-verify** is a snapshot testing plugin for **pytest** that helps ensure your test outputs remain consistent across runs.
 
-It saves and compares snapshots of your test results and optionally provides a **visual diff viewer** for reviewing differences in a stylish terminal UI.
+It automatically saves and compares snapshots of your test results and optionally provides a **visual diff viewer** for reviewing differences directly in your terminal.
 
 ---
 
@@ -26,27 +26,27 @@ Usage
 -----
 
 You can decorate any pytest test function that **returns a value** with ``@verify_snapshot``.
-The first run creates baseline snapshots, and subsequent runs compare outputs to detect changes.
+On the first run, ``pytest-verify`` creates baseline snapshots. On subsequent runs, it compares the new output with the saved expected snapshot and highlights differences.
 
 Basic Example
 ~~~~~~~~~~~~~
 
 .. code-block:: python
 
-    from pytest_verify.plugin import verify_snapshot
+    from pytest_verify import verify_snapshot
 
     @verify_snapshot()
     def test_simple_output():
         return "Hello, pytest-verify!"
 
 **First run:**
-  - Creates two files inside ``__snapshots__/``
+  - Creates two files inside ``__snapshots__/``:
     - ``test_simple_output.expected.txt``
     - ``test_simple_output.actual.txt``
 
-**Later runs:**
-  - Compares new output with existing expected snapshot
-  - If they differ, shows a diff (or opens the visual diff viewer if installed)
+**Subsequent runs:**
+  - Compares the new output with the existing expected snapshot.
+  - If they differ, a diff is shown (or the visual diff viewer opens if installed).
 
 ---
 
@@ -55,7 +55,7 @@ JSON Example (with ignored fields)
 
 .. code-block:: python
 
-    from pytest_verify.plugin import verify_snapshot
+    from pytest_verify import verify_snapshot
 
     @verify_snapshot(ignore_fields=["timestamp", "id"])
     def test_json_output():
@@ -66,7 +66,7 @@ JSON Example (with ignored fields)
             "score": 42
         }
 
-This ignores specific JSON fields such as timestamps or dynamic IDs when comparing snapshots.
+This example ignores specific JSON fields (like timestamps or IDs) during comparison.
 
 ---
 
@@ -75,7 +75,7 @@ XML Example (order sensitivity)
 
 .. code-block:: python
 
-    from pytest_verify.plugin import verify_snapshot
+    from pytest_verify import verify_snapshot
 
     @verify_snapshot(ignore_order_xml=False)
     def test_xml_order_sensitive():
@@ -108,11 +108,12 @@ Accept changes           📝 Updates `.expected` and saves a `.bak` backup
 Visual Diff Viewer
 ------------------
 
-If installed via ``[diff]``, pytest-verify automatically uses a visual diff viewer.
+If installed via ``[diff]``, pytest-verify automatically uses a visual diff viewer:
 
-- Opens automatically when snapshots differ
-- Allows reviewing and accepting/rejecting changes interactively
-- Works entirely in the terminal
+- Opens automatically when snapshots differ.
+- Allows reviewing and accepting/rejecting changes interactively.
+- Works entirely within the terminal — no external tools required.
+
 ---
 
 Developer Notes
