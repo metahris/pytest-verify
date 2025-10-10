@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-verify"
+version = "0.1.0"
+description = "A pytest plugin for snapshot verification"
+authors = [
+    { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+
+dependencies = [
+    "pytest>=7.0",
+    "click>=8.0",
+    "rich>=13.0"
+]
+
+# Optional but nice metadata
+keywords = ["pytest", "snapshot", "testing", "verify"]
+classifiers = [
+    "Framework :: Pytest",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing"
+]
+
+[project.entry-points."pytest11"]
+pytest_verify = "pytest_verify.plugin"
+
+[tool.setuptools]
+packages = ["pytest_verify"]
+
+[tool.setuptools.package-data]
+pytest_verify = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = ["tests"]

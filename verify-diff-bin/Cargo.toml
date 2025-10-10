@@ -1,0 +1,10 @@
+[package]
+name = "verify-diff-bin"
+version = "0.2.0"
+edition = "2021"
+description = "Stylish terminal diff viewer for pytest-verify"
+
+[dependencies]
+similar = "2.5"
+owo-colors = "4.0"
+terminal_size = "0.3"
