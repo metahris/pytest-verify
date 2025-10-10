@@ -1,8 +1,10 @@
 [package]
-name = "verify-diff-bin"
-version = "0.2.0"
+name = "verify-diff-viewer"
+version = "0.1.0"
 edition = "2021"
 description = "Stylish terminal diff viewer for pytest-verify"
+license = "Apache-2.0"
+authors = ["Mohamed Tahri <simotahri1@gmail.com>"]
 
 [dependencies]
 similar = "2.5"

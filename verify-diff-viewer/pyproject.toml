@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "verify-diff-viewer"
+version = "0.1.0"
+description = "terminal diff viewer for pytest-verify"
+authors = [{ name = "Mohamed Tahri", email = "simotahri1@gmail.com" }]
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+
+[tool.maturin]
+bindings = "bin"
+strip = true
