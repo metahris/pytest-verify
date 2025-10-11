@@ -332,3 +332,4 @@ Author
 **Mohamed Tahri**  
 Email: simotahri1@gmail.com  
 GitHub: https://github.com/metahris/pytest-verify
+
