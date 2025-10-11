@@ -5,9 +5,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-verify"
-version = "0.1.0"
+version = "0.2.0"
 description = "A pytest plugin for snapshot verification"
-urls = { "Homepage" = "https://github.com/metahris/pytest-verify" }
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
 ]
@@ -34,6 +33,12 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Testing"
 ]
+
+[project.urls]
+Homepage = "https://github.com/metahris/pytest-verify"
+Repository = "https://github.com/metahris/pytest-verify"
+Documentation = "https://github.com/metahris/pytest-verify#readme"
+Issues = "https://github.com/metahris/pytest-verify/issues"
 
 [project.entry-points."pytest11"]
 pytest_verify = "pytest_verify.plugin"

@@ -1,0 +1,23 @@
+name: Publish verify-diff-viewer to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build and publish with maturin
+        uses: messense/maturin-action@v1
+        with:
+          maturin-version: "1.7.4"
+          command: publish
+          args: --skip-existing -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
+          working-directory: verify-diff-viewer
