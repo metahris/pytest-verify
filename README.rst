@@ -165,7 +165,7 @@ If you reorder the elements, the test will fail.
 
     <users>
         <user id="2">Adnane</user>
-        <user id="1">Ayoub</user>
+        <user id="1">Mohamed</user>
     </users>
 
 ---
