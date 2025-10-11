@@ -2,18 +2,16 @@
 requires = ["setuptools>=64", "wheel", "build"]
 build-backend = "setuptools.build_meta"
 
-
 [project]
 name = "pytest-verify"
 version = "0.2.0"
-description = "A pytest plugin for snapshot verification"
+description = "A pytest plugin for snapshot verification with optional visual diff viewer."
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
 ]
-readme = "README.md"
+readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
-
 
 dependencies = [
     "pytest>=7.0",
@@ -21,24 +19,31 @@ dependencies = [
     "rich>=13.0"
 ]
 
-# Optional but nice metadata
 keywords = ["pytest", "snapshot", "testing", "verify", "diff", "viewer"]
+
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
     "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: Apache Software License",
-    "Intended Audience :: Developers",
-    "Topic :: Software Development :: Testing"
+    "License :: OSI Approved :: Apache Software License"
 ]
 
 [project.urls]
 Homepage = "https://github.com/metahris/pytest-verify"
 Repository = "https://github.com/metahris/pytest-verify"
+Stars = "https://github.com/metahris/pytest-verify/stargazers"
+Forks = "https://github.com/metahris/pytest-verify/network/members"
 Documentation = "https://github.com/metahris/pytest-verify#readme"
 Issues = "https://github.com/metahris/pytest-verify/issues"
+Changelog = "https://github.com/metahris/pytest-verify/releases"
+"Diff Viewer" = "https://github.com/metahris/pytest-verify/tree/master/verify-diff-viewer"
+
+
 
 [project.entry-points."pytest11"]
 pytest_verify = "pytest_verify.plugin"

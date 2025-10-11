@@ -5,14 +5,29 @@ build-backend = "maturin"
 [project]
 name = "verify-diff-viewer"
 version = "0.2.0"
-description = "terminal diff viewer for pytest-verify"
-authors = [{ name = "Mohamed Tahri", email = "simotahri1@gmail.com" }]
+description = "A fast terminal diff viewer for pytest-verify"
+authors = [
+    { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
+]
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+
+keywords = ["diff", "viewer", "pytest", "snapshot", "testing", "verify"]
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+]
 
 [project.urls]
-Homepage = "https://github.com/metahris/pytest-verify/verify-diff-viewer"
-Repository = "https://github.com/metahris/pytest-verify/verify-diff-viewer"
+Homepage = "https://github.com/metahris/pytest-verify/tree/master/verify-diff-viewer"
+Repository = "https://github.com/metahris/pytest-verify"
 Documentation = "https://github.com/metahris/pytest-verify#readme"
 Issues = "https://github.com/metahris/pytest-verify/issues"
 
