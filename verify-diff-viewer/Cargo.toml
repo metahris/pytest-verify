@@ -5,6 +5,7 @@ edition = "2021"
 description = "Stylish terminal diff viewer for pytest-verify"
 license = "Apache-2.0"
 authors = ["Mohamed Tahri <simotahri1@gmail.com>"]
+rust-version = "1.72"
 
 [dependencies]
 similar = "2.5"
