@@ -49,20 +49,17 @@ testpaths = ["tests"]
 
 [project.optional-dependencies]
 diff = ["verify-diff-viewer>=0.1.0"]
-pydantic = ["pydantic>=1.10,<3.0"]
-numpy = ["numpy>=1.23"]
+pydantic = ["pydantic>=2.0,<3.0"]
+numpy = ["numpy>=1.24"]
 pandas = ["pandas>=2.0"]
-
-[project.optional-dependencies]
 data = [
     "pandas>=2.0",
     "numpy>=1.24",
     "pydantic>=2.0"
 ]
-
 all = [
     "verify-diff-viewer>=0.1.0",
-    "pydantic>=1.10,<3.0",
-    "numpy>=1.23",
+    "pydantic>=2.0,<3.0",
+    "numpy>=1.24",
     "pandas>=2.0"
 ]
