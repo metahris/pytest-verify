@@ -11,7 +11,6 @@ authors = [
 ]
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
-readme = { file = "README.rst", content-type = "text/x-rst" }
 
 keywords = ["diff", "viewer", "pytest", "snapshot", "testing", "verify"]
 
