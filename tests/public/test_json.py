@@ -26,7 +26,7 @@ def test_json_with_tolerances():
 
 @verify_snapshot(ignore_order_json=False)
 def test_json_order_sensitive():
-    """Fails if order of keys or list elements changes."""
+    """Fails if order of list elements changes."""
     return {
         "users": [
             {"id": 1, "job_name": "get_price"},
