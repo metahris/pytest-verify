@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=64", "wheel", "build"]
 build-backend = "setuptools.build_meta"
 
 
@@ -7,6 +7,7 @@ build-backend = "setuptools.build_meta"
 name = "pytest-verify"
 version = "0.1.0"
 description = "A pytest plugin for snapshot verification"
+urls = { "Homepage" = "https://github.com/metahris/pytest-verify" }
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
 ]

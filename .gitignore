@@ -8,6 +8,13 @@ verify-diff-viewer/target/
 **/*.rlib
 **/*.lock
 
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
 # User-specific files
 *.rsuser
 *.suo
@@ -16,7 +23,6 @@ verify-diff-viewer/target/
 *.sln.docstates
 *.env
 *.idea
-*.egg-info/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

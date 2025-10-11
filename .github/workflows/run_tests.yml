@@ -29,9 +29,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ./verify-diff-viewer
           python -m pip install .[data]
           pip install pytest
 
       - name: Run Pytest
-        run: pytest -v --disable-warnings
+        run: pytest --disable-warnings
