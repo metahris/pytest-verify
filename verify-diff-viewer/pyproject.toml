@@ -10,6 +10,12 @@ authors = [{ name = "Mohamed Tahri", email = "simotahri1@gmail.com" }]
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
 
+[project.urls]
+Homepage = "https://github.com/metahris/pytest-verify/verify-diff-viewer"
+Repository = "https://github.com/metahris/pytest-verify/verify-diff-viewer"
+Documentation = "https://github.com/metahris/pytest-verify#readme"
+Issues = "https://github.com/metahris/pytest-verify/issues"
+
 [tool.maturin]
 bindings = "bin"
 strip = true
