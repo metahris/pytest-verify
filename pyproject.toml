@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-verify"
-version = "0.3.0"
+version = "0.3.1"
 description = "A pytest plugin for snapshot verification with optional visual diff viewer."
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
@@ -41,7 +41,7 @@ Forks = "https://github.com/metahris/pytest-verify/network/members"
 Documentation = "https://github.com/metahris/pytest-verify#readme"
 Issues = "https://github.com/metahris/pytest-verify/issues"
 Changelog = "https://github.com/metahris/pytest-verify/releases"
-"Diff Viewer" = "https://github.com/metahris/pytest-verify/tree/master/verify-diff-viewer"
+DiffViewer = "https://github.com/metahris/pytest-verify/tree/master/verify-diff-viewer"
 
 
 
