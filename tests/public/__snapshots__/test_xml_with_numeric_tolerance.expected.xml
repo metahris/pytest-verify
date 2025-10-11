@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<measurements>
+	
+        
+	<temperature value="20.001" unit="C"/>
+	
+        
+	<pressure>101.325</pressure>
+	
+    
+</measurements>

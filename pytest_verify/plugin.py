@@ -15,6 +15,24 @@ import click
 from rich.console import Console
 from rich.syntax import Syntax
 
+import dataclasses
+
+# Optional dependencies
+try:
+    from pydantic import BaseModel
+except ImportError:
+    BaseModel = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 console = Console()
 
 
@@ -22,6 +40,14 @@ console = Console()
 
 def _detect_format(result) -> str:
     """Detect snapshot format based on type."""
+    if BaseModel and isinstance(result, BaseModel):
+        return "pydantic"
+    if dataclasses.is_dataclass(result):
+        return "dataclass"
+    if np and isinstance(result, np.ndarray):
+        return "ndarray"
+    if pd and isinstance(result, pd.DataFrame):
+        return "dataframe"
     if isinstance(result, (dict, list)):
         return "json"
     if isinstance(result, bytes):
@@ -35,33 +61,67 @@ def _detect_format(result) -> str:
 
 def _serialize_result(result, fmt: str) -> str | bytes:
     """Serialize Python result to string or bytes."""
+    if fmt == "pydantic":
+        if not BaseModel:
+            raise ImportError(
+                "Pydantic support requires 'pydantic'. Install via: pip install pytest-verify[pydantic]"
+            )
+        data = result.model_dump()
+        return json.dumps(data, indent=2, sort_keys=True)
+
+    if fmt == "dataclass":
+        data = dataclasses.asdict(result)
+        return json.dumps(data, indent=2, sort_keys=True)
+
+    if fmt == "ndarray":
+        if not np:
+            raise ImportError(
+                "NumPy support requires 'numpy'. Install via: pip install pytest-verify[numpy]"
+            )
+        return json.dumps(result.tolist(), indent=2)
+
+    if fmt == "dataframe":
+        if not pd:
+            raise ImportError(
+                "Pandas support requires 'pandas'. Install via: pip install pytest-verify[pandas]"
+            )
+        return result.to_csv(index=False)
+
     if fmt == "json":
         return json.dumps(result, indent=2, sort_keys=True)
+
     if fmt == "xml":
         try:
             parsed = xml.dom.minidom.parseString(result)
             return parsed.toprettyxml()
         except Exception:
             return str(result)
+
     if fmt == "txt":
         return str(result)
+
     if fmt == "bin":
         return result
+
     return str(result)
 
 
-def _get_snapshot_paths(func_name: str, fmt: str, dir: Path) -> tuple[Path, Path]:
-    """Return paths for expected and actual snapshots."""
+def _get_snapshot_paths(func_name: str, fmt: str, dir: str | Path) -> tuple[Path, Path]:
+    """Return paths for expected and actual snapshots based on format."""
+    # Choose file extension based on detected format
     ext = (
-        ".json" if fmt == "json"
-        else ".xml" if fmt == "xml"
-        else ".bin" if fmt == "bin"
-        else ".txt"
+        ".json" if fmt in {"json", "pydantic", "dataclass", "ndarray"} else
+        ".xml" if fmt == "xml" else
+        ".bin" if fmt == "bin" else
+        ".csv" if fmt == "dataframe" else
+        ".txt"
     )
 
-    base = dir / f"{func_name}"
+    base = Path(dir) / f"{func_name}"
     expected = base.with_suffix(f".expected{ext}")
     actual = base.with_suffix(f".actual{ext}")
+
+    expected.parent.mkdir(exist_ok=True, parents=True)
     return expected, actual
 
 
@@ -285,6 +345,101 @@ def _compare_xml(
     return _compare_elements(root1, root2)
 
 
+@_register_comparer("pydantic")
+def _compare_pydantic(old: str, new: str, **kwargs):
+    """Compare two Pydantic model snapshots as JSON."""
+    return _compare_json(old, new, **kwargs)
+
+
+@_register_comparer("dataclass")
+def _compare_dataclass(old: str, new: str, **kwargs):
+    """Compare dataclass snapshots as JSON."""
+    return _compare_json(old, new, **kwargs)
+
+
+@_register_comparer("ndarray")
+def _compare_ndarray(old: str, new: str, *, abs_tol=None, rel_tol=None, **_):
+    """Compare NumPy arrays element-wise with tolerance."""
+    if np is None:
+        raise ImportError("NumPy support requires 'numpy'. Install via: pip install pytest-verify[numpy]")
+
+    old_arr = np.array(json.loads(old))
+    new_arr = np.array(json.loads(new))
+    if old_arr.shape != new_arr.shape:
+        return False
+    abs_tol = abs_tol or 0
+    rel_tol = rel_tol or 0
+    return np.allclose(old_arr, new_arr, atol=abs_tol, rtol=rel_tol)
+
+
+@_register_comparer("dataframe")
+def _compare_dataframe(
+    old: str,
+    new: str,
+    *,
+    ignore_columns=None,
+    abs_tol: float | None = None,
+    rel_tol: float | None = None,
+    **_,
+):
+    """Compare Pandas DataFrames by content, with support for ignored columns and numeric tolerances."""
+    if pd is None:
+        raise ImportError("Pandas support requires 'pandas'. Install via: pip install pytest-verify[pandas]")
+
+    from io import StringIO
+
+    # Load both snapshots as DataFrames
+    old_df = pd.read_csv(StringIO(old))
+    new_df = pd.read_csv(StringIO(new))
+
+    # Drop ignored columns if requested
+    if ignore_columns:
+        ignore_columns = [col for col in ignore_columns if col in old_df.columns or col in new_df.columns]
+        old_df = old_df.drop(columns=[c for c in ignore_columns if c in old_df.columns], errors="ignore")
+        new_df = new_df.drop(columns=[c for c in ignore_columns if c in new_df.columns], errors="ignore")
+
+    # Ensure same columns and order
+    if set(old_df.columns) != set(new_df.columns):
+        return False
+
+    # Align columns (to be consistent in order)
+    old_df = old_df[new_df.columns]
+
+    # Check shape
+    if old_df.shape != new_df.shape:
+        return False
+
+    abs_tol = abs_tol or 0
+    rel_tol = rel_tol or 0
+
+    # Compare numeric and non-numeric separately
+    try:
+        for col in old_df.columns:
+            old_col = old_df[col]
+            new_col = new_df[col]
+
+            # Case 1: Numeric comparison with tolerance
+            if pd.api.types.is_numeric_dtype(old_col) and pd.api.types.is_numeric_dtype(new_col):
+                # If any numeric mismatch exceeds tolerance → fail
+                if not np.allclose(
+                    old_col.fillna(0).to_numpy(),
+                    new_col.fillna(0).to_numpy(),
+                    atol=abs_tol,
+                    rtol=rel_tol,
+                    equal_nan=True,
+                ):
+                    return False
+            else:
+                # Case 2: Non-numeric exact comparison (ignoring NaN differences)
+                if not old_col.fillna("").equals(new_col.fillna("")):
+                    return False
+
+        return True
+    except Exception:
+        return False
+
+
+
 def _compare_snapshots(old, new, fmt, **kwargs) -> bool:
     """Delegate comparison to the appropriate comparer."""
     comparer = _COMPARERS.get(fmt)
@@ -306,6 +461,7 @@ def verify_snapshot(
         dir: str = "__snapshots__",  # default name for snapshot subfolder
         *,
         ignore_fields: list[str] | None = None,
+        ignore_columns: list[str] | None = None,
         abs_tol: float | None = None,
         rel_tol: float | None = None,
         ignore_order_json: bool = True,
@@ -351,20 +507,23 @@ def verify_snapshot(
                 content,
                 fmt,
                 ignore_fields=ignore_fields,
+                ignore_columns=ignore_columns,
                 abs_tol=abs_tol,
                 rel_tol=rel_tol,
                 ignore_order_json=ignore_order_json,
                 ignore_order_xml=ignore_order_xml,
             )
 
+            # === If matches ===
             if matches:
                 console.print(f"✅ Snapshot matches: [green]{expected_path}[/green]")
                 _save_snapshot(expected_path, content)
                 return result
 
+            # === Mismatch detected ===
             console.print(f"⚠️ Snapshot mismatch detected for [bold]{name}[/bold]")
 
-            # Try Rust diff viewer
+            # Try Rust diff viewer first
             rust_result = _run_rust_diff(expected_path, actual_path)
 
             if rust_result:
@@ -373,11 +532,11 @@ def verify_snapshot(
                 console.print(f"📝 Snapshot updated → {expected_path}")
                 return result
 
-            elif not rust_result:
+            elif rust_result is False:
                 console.print(f"❌ Changes rejected by user for {expected_path}")
                 raise AssertionError(f"Snapshot mismatch for {expected_path}")
 
-            # Fallback to Python diff
+            # === Fallback to Python diff ===
             _show_diff_python(
                 expected_content.decode("utf-8") if isinstance(expected_content, bytes) else expected_content,
                 content.decode("utf-8") if isinstance(content, bytes) else content,
@@ -397,3 +556,4 @@ def verify_snapshot(
         return wrapper
 
     return decorator
+

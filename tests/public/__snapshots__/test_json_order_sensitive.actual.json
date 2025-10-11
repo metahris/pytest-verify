@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "job_name": "get_price"
+    },
+    {
+      "id": 2,
+      "job_name": "get_delta"
+    }
+  ]
+}

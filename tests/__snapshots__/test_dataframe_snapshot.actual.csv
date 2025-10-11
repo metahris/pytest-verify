@@ -1,0 +1,4 @@
+timestamp,city,temperature,humidity
+2025-10-09T12:00:00Z,Paris,20.0001,55
+2025-10-09T12:01:00Z,Casablanca,19.9999,60
+2025-10-09T12:02:00Z,Marseille,21.0002,58
