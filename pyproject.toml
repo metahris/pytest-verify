@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-verify"
-version = "0.2.0"
+version = "0.3.0"
 description = "A pytest plugin for snapshot verification with optional visual diff viewer."
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
