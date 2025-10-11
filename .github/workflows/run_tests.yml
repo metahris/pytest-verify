@@ -34,4 +34,4 @@ jobs:
           pip install pytest
 
       - name: Run Pytest
-        run: pytest
+        run: pytest -v --disable-warnings
