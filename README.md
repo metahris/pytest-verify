@@ -80,7 +80,7 @@ match.
 2.  **Numeric tolerance**
 
 ``` python
-@verify_snapshot(abs_tol=1e-3)
+@verify_snapshot(abs_tol=1e-3; rel_tol=1e-3)
 def test_json_with_tolerance():
     return {"value": 3.1416}
 ```
