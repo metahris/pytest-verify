@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "verify-diff-viewer"
-version = "0.3.3"
+version = "1.0.0"
 description = "A fast terminal diff viewer for pytest-verify"
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
