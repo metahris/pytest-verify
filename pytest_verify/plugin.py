@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+import datetime
 import difflib
 import inspect
 import json
@@ -12,10 +14,9 @@ from functools import wraps
 from pathlib import Path
 
 import click
+import yaml
 from rich.console import Console
 from rich.syntax import Syntax
-
-import dataclasses
 
 # Optional dependencies
 try:
@@ -53,8 +54,15 @@ def _detect_format(result) -> str:
     if isinstance(result, bytes):
         return "bin"
     if isinstance(result, str):
-        if result.strip().startswith("<") and result.strip().endswith(">"):
+        stripped = result.strip()
+        if stripped.startswith("<") and stripped.endswith(">"):
             return "xml"
+        if any(ch in stripped for ch in [":", "-"]) and "\n" in stripped:
+            try:
+                yaml.safe_load(stripped)
+                return "yaml"
+            except Exception:
+                pass
         return "txt"
     return "txt"
 
@@ -103,6 +111,17 @@ def _serialize_result(result, fmt: str) -> str | bytes:
     if fmt == "bin":
         return result
 
+    if fmt == "yaml":
+        try:
+            # If the result is already a dict/list, just dump it
+            if isinstance(result, (dict, list)):
+                return yaml.dump(result, sort_keys=True, indent=2)
+            # If it's a YAML string, parse and re-dump it canonically
+            parsed = yaml.safe_load(result)
+            return yaml.dump(parsed, sort_keys=True, indent=2)
+        except Exception:
+            return str(result)
+
     return str(result)
 
 
@@ -112,6 +131,7 @@ def _get_snapshot_paths(func_name: str, fmt: str, dir: str | Path) -> tuple[Path
     ext = (
         ".json" if fmt in {"json", "pydantic", "dataclass", "ndarray"} else
         ".xml" if fmt == "xml" else
+        ".yaml" if fmt == "yaml" else
         ".bin" if fmt == "bin" else
         ".csv" if fmt == "dataframe" else
         ".txt"
@@ -159,13 +179,13 @@ def _ask_to_replace(path: Path) -> bool:
 
 # ========== DIFF VIEWERS ========== #
 
-def _show_diff_python(old: str, new: str, path: Path):
-    """Fallback diff using difflib + rich."""
+def _show_diff_python(old: str, new: str, expected_path: Path, actual_path: Path):
+    """Display unified diff between expected and actual snapshots."""
     diff = difflib.unified_diff(
         old.splitlines(),
         new.splitlines(),
-        fromfile=f"{path} (expected)",
-        tofile=f"{path} (actual)",
+        fromfile=f"{expected_path.name} (expected)",
+        tofile=f"{actual_path.name} (actual)",
         lineterm=""
     )
     diff_text = "\n".join(diff)
@@ -324,7 +344,7 @@ def _compare_xml(
         if len(c1) != len(c2):
             return False
         if ignore_order_xml:
-            def key_fn(el): return (el.tag, tuple(sorted(el.attrib.items())))
+            def key_fn(el): return el.tag, tuple(sorted(el.attrib.items()))
 
             c1.sort(key=key_fn)
             c2.sort(key=key_fn)
@@ -359,31 +379,64 @@ def _compare_dataclass(old: str, new: str, **kwargs):
 
 @_register_comparer("ndarray")
 def _compare_ndarray(old: str, new: str, *, abs_tol=None, rel_tol=None, **_):
-    """Compare NumPy arrays element-wise with tolerance."""
-    if np is None:
+    """Compare NumPy arrays element-wise with tolerance and type awareness."""
+    if not np:
         raise ImportError("NumPy support requires 'numpy'. Install via: pip install pytest-verify[numpy]")
 
-    old_arr = np.array(json.loads(old))
-    new_arr = np.array(json.loads(new))
+    def _replace_none_with_nan(obj):
+        if isinstance(obj, list):
+            return [_replace_none_with_nan(i) for i in obj]
+        return np.nan if obj is None else obj
+
+    old_data = _replace_none_with_nan(json.loads(old))
+    new_data = _replace_none_with_nan(json.loads(new))
+
+    old_arr = np.array(old_data, dtype=object)
+    new_arr = np.array(new_data, dtype=object)
+
+    # Shape check first
     if old_arr.shape != new_arr.shape:
         return False
+
     abs_tol = abs_tol or 0
     rel_tol = rel_tol or 0
-    return np.allclose(old_arr, new_arr, atol=abs_tol, rtol=rel_tol)
+
+    # Type-aware comparison
+    for a, b in zip(old_arr.flatten(), new_arr.flatten()):
+        # Handle NaN
+        if (a is None and b is None) or (isinstance(a, float) and isinstance(b, float)
+                                         and np.isnan(a) and np.isnan(b)):
+            continue
+
+        # If types differ → fail immediately
+        if type(a) != type(b):
+            return False
+
+        # If numeric → use tolerance
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            if not np.isclose(a, b, atol=abs_tol, rtol=rel_tol, equal_nan=True):
+                return False
+        else:
+            # Non-numeric strict equality
+            if a != b:
+                return False
+
+    return True
+
 
 
 @_register_comparer("dataframe")
 def _compare_dataframe(
-    old: str,
-    new: str,
-    *,
-    ignore_columns=None,
-    abs_tol: float | None = None,
-    rel_tol: float | None = None,
-    **_,
+        old: str,
+        new: str,
+        *,
+        ignore_columns=None,
+        abs_tol: float | None = None,
+        rel_tol: float | None = None,
+        **_,
 ):
     """Compare Pandas DataFrames by content, with support for ignored columns and numeric tolerances."""
-    if pd is None:
+    if not pd:
         raise ImportError("Pandas support requires 'pandas'. Install via: pip install pytest-verify[pandas]")
 
     from io import StringIO
@@ -422,11 +475,11 @@ def _compare_dataframe(
             if pd.api.types.is_numeric_dtype(old_col) and pd.api.types.is_numeric_dtype(new_col):
                 # If any numeric mismatch exceeds tolerance → fail
                 if not np.allclose(
-                    old_col.fillna(0).to_numpy(),
-                    new_col.fillna(0).to_numpy(),
-                    atol=abs_tol,
-                    rtol=rel_tol,
-                    equal_nan=True,
+                        old_col.fillna(0).to_numpy(),
+                        new_col.fillna(0).to_numpy(),
+                        atol=abs_tol,
+                        rtol=rel_tol,
+                        equal_nan=True,
                 ):
                     return False
             else:
@@ -438,6 +491,49 @@ def _compare_dataframe(
     except Exception:
         return False
 
+
+@_register_comparer("yaml")
+def _compare_yaml(old: str, new: str, *, ignore_order_yaml=False, **kwargs):
+    """
+       Compare two YAML documents.
+
+       By default, list order differences will cause mismatches.
+       If ignore_order_yaml=True, lists are recursively sorted for order-insensitive comparison.
+    """
+
+    def default_serializer(obj):
+        if isinstance(obj, (datetime.date, datetime.datetime)):
+            return obj.isoformat()
+        return str(obj)
+
+    def sort_nested(obj):
+        """Recursively sort lists and dicts for order-insensitive comparison."""
+        if isinstance(obj, dict):
+            # Sort by key
+            return {k: sort_nested(v) for k, v in sorted(obj.items())}
+        elif isinstance(obj, list):
+            # Sort lists if order should be ignored
+            if ignore_order_yaml:
+                # Sort list items deterministically
+                try:
+                    return sorted((sort_nested(i) for i in obj), key=lambda x: json.dumps(x, sort_keys=True))
+                except TypeError:
+                    # fallback: if un-sortable types, treat as set
+                    return sorted((str(i) for i in obj))
+            else:
+                return [sort_nested(i) for i in obj]
+        return obj
+
+    old_obj = yaml.safe_load(old)
+    new_obj = yaml.safe_load(new)
+
+    old_sorted = sort_nested(old_obj)
+    new_sorted = sort_nested(new_obj)
+
+    old_json = json.dumps(old_sorted, indent=2, sort_keys=True, default=default_serializer)
+    new_json = json.dumps(new_sorted, indent=2, sort_keys=True, default=default_serializer)
+
+    return _compare_json(old=old_json, new=new_json, ignore_order_json=ignore_order_yaml, **kwargs)
 
 
 def _compare_snapshots(old, new, fmt, **kwargs) -> bool:
@@ -466,6 +562,7 @@ def verify_snapshot(
         rel_tol: float | None = None,
         ignore_order_json: bool = True,
         ignore_order_xml: bool = True,
+        ignore_order_yaml: bool = True
 ):
     """
     Decorator that saves and compares test results as snapshots.
@@ -541,6 +638,7 @@ def verify_snapshot(
                 expected_content.decode("utf-8") if isinstance(expected_content, bytes) else expected_content,
                 content.decode("utf-8") if isinstance(content, bytes) else content,
                 expected_path,
+                actual_path
             )
 
             if _ask_to_replace(expected_path):
@@ -556,4 +654,3 @@ def verify_snapshot(
         return wrapper
 
     return decorator
-

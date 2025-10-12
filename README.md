@@ -1,10 +1,10 @@
 # pytest-verify
 
-**pytest-verify** is a snapshot testing plugin for **pytest** that helps
-ensure your test outputs remain consistent across runs.
+**pytest-verify** is a snapshot testing plugin for **pytest** that
+ensures your test outputs remain consistent across runs.
 
 It automatically saves and compares snapshots of your test results and
-optionally provides a **visual diff viewer** for reviewing differences
+can optionally launch a **visual diff viewer** for reviewing differences
 directly in your terminal.
 
 ---
@@ -15,279 +15,348 @@ Basic installation:
 
     pip install pytest-verify
 
-With optional visual diff viewer:
+With optional diff viewer:
 
     pip install pytest-verify[diff]
 
-The `[diff]` extra installs an enhanced terminal-based diff viewer for
-reviewing snapshot differences interactively.
-
-If you plan to test **pandas**, **numpy**, or **pydantic** objects,
-install extras:
-
-    pip install pytest-verify[pandas,numpy,pydantic]
-
-You can also combine everything:
-
-    pip install pytest-verify[all]
+The <span class="title-ref">\[diff\]</span> extra adds an enhanced
+terminal-based diff viewer for reviewing snapshot differences
+interactively.
 
 ---
 
-## Usage
+## Usage Overview
 
-You can decorate any pytest test function that **returns a value** with
+Any pytest test that **returns a value** can be decorated with
 `@verify_snapshot`.
 
 - On the **first run**, pytest-verify creates baseline snapshots.
-- On **subsequent runs**, it compares the new output with the saved
-  expected snapshot and highlights differences.
-
-If outputs differ, you’ll see a colorized diff in the terminal or, if
-installed, the visual diff viewer will open automatically.
+- On **subsequent runs**, it compares the new output with the expected
+  snapshot.
+- If differences are detected, a diff is displayed (or the visual viewer
+  opens).
 
 ---
 
-### Basic Example (Text)
+## Text Example
 
 ``` python
 from pytest_verify import verify_snapshot
 
 @verify_snapshot()
-def test_greeting():
+def test_text_snapshot():
     return "Hello, pytest-verify!"
 ```
 
-**First run:**  
-- Creates two files inside `__snapshots__/`:
-  - `test_greeting.expected.txt`
-  - `test_greeting.actual.txt`
+**Passes when:** - The returned text is identical to the saved
+snapshot. - Whitespace at the start or end of the string is ignored.
 
-**Subsequent runs:**  
-- Compares the new output with the existing expected snapshot.
-- If they differ, a diff is shown (or the visual diff viewer opens if
-  installed).
+**Fails when:** - The text content changes (e.g. `"Hello, pytest!"`).
 
-**Snapshot mismatch with diff viewer**
+---
 
-![screenshot](docs/images/test_text_failed.png)
+## JSON Examples
 
---- - At some point, 'test_greetings()' started returning "Hello,
-pytest-verify, you're cool!".
-
-> 🗨️ Test FAILED, pytest-verify will ask whether to replace the expected
-> snapshot with the new one or not.
-
-### Basic Example (Json)
+1.  **Ignore fields**
 
 ``` python
 from pytest_verify import verify_snapshot
 
-@@verify_snapshot()
-def test_simple_json_snapshot():
-    return {"name": "Mohamed", "age": 28, "country": "Morocco"}
+@verify_snapshot(ignore_fields=["id"])
+def test_json_ignore_fields():
+    return {"id": 2, "name": "Mohamed"}
 ```
 
-**Snapshot mismatch with diff viewer**
+**Passes when:** - Ignored fields differ (`id`), but all other keys
+match.
 
-![screenshot](docs/images/test_simple_json_failed.png)
+**Fails when:** - Non-ignored fields differ (e.g. `"name"`).
 
 ---
 
-Ignore specific JSON fields:
+2.  **Numeric tolerance**
 
 ``` python
-@verify_snapshot(ignore_fields=["duration", "timestamp"])
-def test_json_with_ignore_fields():
-    return {
-        "Job": "get_price",
-        "price": "100",
-        "duration": "20s",
-        "timestamp": "2025-10-09T12:00:00Z"
-    }
+@verify_snapshot(abs_tol=1e-3)
+def test_json_with_tolerance():
+    return {"value": 3.1416}
 ```
+
+**Passes when:** - Numeric values differ slightly within tolerance
+(`abs_tol=0.001`).
+
+**Fails when:** - The numeric difference exceeds the allowed tolerance.
 
 ---
 
-Test numeric tolerance on floating-point values:
-
-``` python
-@verify_snapshot(abs_tol=1e-4, rel_tol=1e-4)
-def test_json_with_tolerances():
-    return {"temperature": 21.0001, "humidity": 59.9999}
-```
-
----
-
-Fails if order of list elements changes:
+3.  **Nested structure (order-sensitive vs insensitive)**
 
 ``` python
 @verify_snapshot(ignore_order_json=False)
-def test_json_order_sensitive():
+def test_json_nested_structure_order_sensitive():
     return {
-        "users": [
-            {"id": 1, "job_name": "get_price"},
-            {"id": 2, "job_name": "get_delta"}
-        ]
+        "team": {
+            "members": [
+                {"name": "John", "role": "Developer"},
+                {"name": "Mary", "role": "Manager"}
+            ]
+        }
     }
 ```
 
+**Passes when:** - The order of nested list elements (`members`) matches
+the snapshot.
+
+**Fails when:** - The list order changes (e.g. `Mary` before `John`)
+while `ignore_order_json=False`.
+
+If you set `ignore_order_json=True`, this same test **passes** because
+list order is ignored.
+
 ---
 
-![screenshot](docs/images/test_json_order_failed.png)
+## YAML Examples
 
----
-
-### XML Example (Order Sensitivity)
+1.  **Order-sensitive**
 
 ``` python
-from pytest_verify import verify_snapshot
+@verify_snapshot(ignore_order_yaml=False)
+def test_yaml_order_sensitive():
+    return """
+    fruits:
+      - apple
+      - banana
+    """
+```
 
+**Passes when:** - The order of YAML list items is identical.
+
+**Fails when:** - The order changes while order sensitivity is enforced.
+
+---
+
+2.  **Ignore fields**
+
+``` python
+@verify_snapshot(ignore_fields=["age"])
+def test_yaml_ignore_fields():
+    return """
+    person:
+      name: Alice
+      age: 31
+      city: Paris
+    """
+```
+
+**Passes when:** - Ignored fields (`age`) differ.
+
+**Fails when:** - Any non-ignored fields differ.
+
+---
+
+3.  **Numeric tolerance**
+
+``` python
+@verify_snapshot(abs_tol=0.02)
+def test_yaml_numeric_tolerance():
+    return """
+    metrics:
+      accuracy: 99.96
+    """
+```
+
+**Passes when:** - Numeric values differ within the given absolute
+tolerance.
+
+**Fails when:** - The difference exceeds the allowed tolerance.
+
+---
+
+## XML Examples
+
+1.  **Order-sensitive**
+
+``` python
 @verify_snapshot(ignore_order_xml=False)
-def test_xml_snapshot_order_sensitive():
-    return """
-    <users>
-        <user id="1">Mohamed</user>
-        <user id="2">Adnane</user>
-    </users>
-    """
+def test_xml_order_sensitive():
+    return "<root><a>1</a><b>2</b></root>"
 ```
 
-If you reorder the elements, the test will fail.
+**Passes when:** - The element order matches the saved snapshot.
 
-**\# should fail example:**
-
-``` xml
-<users>
-    <user id="2">Adnane</user>
-    <user id="1">Mohamed</user>
-</users>
-```
+**Fails when:** - Elements are swapped (e.g. `<b>2</b><a>1</a>`).
 
 ---
 
-![screenshot](docs/images/test_xml_order_failed.png)
-
----
-
-it is order-insensitive by default `ignore_order_xml=True`.
-
-Verify that small numeric differences in XML attributes or values are
-tolerated within the given abs/rel tolerance.
+2.  **Numeric tolerance**
 
 ``` python
-@verify_snapshot(abs_tol=1e-3, rel_tol=1e-3)
-def test_xml_with_numeric_tolerance():
-    return """
-    <measurements>
-        <temperature value="20.001" unit="C"/>
-        <pressure>101.325</pressure>
-    </measurements>
-    """
+@verify_snapshot(abs_tol=0.02)
+def test_xml_numeric_tolerance():
+    return "<metrics><score>99.96</score></metrics>"
 ```
 
-### Dataclass Example
+**Passes when:** - Numeric differences are within tolerance.
 
-``` python
-from dataclasses import dataclass
-from pytest_verify import verify_snapshot
-
-@dataclass
-class User:
-    id: int
-    name: str
-    country: str
-
-@verify_snapshot(ignore_fields=["id"])
-def test_dataclass_snapshot():
-    return User(id=123, name="Ayoub", country="France")
-```
-
-The dataclass is automatically serialized to JSON and compared on each
-test run.
+**Fails when:** - Values differ by more than the allowed tolerance.
 
 ---
 
-### Pydantic Example (Float Tolerance)
+## Pandas DataFrame Examples
 
-``` python
-from pydantic import BaseModel
-from pytest_verify import verify_snapshot
-
-class Product(BaseModel):
-    id: int
-    name: str
-    price: float
-
-@verify_snapshot(ignore_fields=["id"], abs_tol=1e-3)
-def test_pydantic_snapshot():
-    return Product(id=1, name="Laptop", price=999.999)
-```
-
-**Requires:** `pip install pytest-verify[pydantic]`
-
----
-
-### Pandas DataFrame Example
+1.  **Ignore columns**
 
 ``` python
 import pandas as pd
 from pytest_verify import verify_snapshot
 
-@verify_snapshot(ignore_columns=["timestamp"], abs_tol=1e-4)
-def test_dataframe_snapshot():
+@verify_snapshot(ignore_columns=["B"])
+def test_dataframe_ignore_columns():
     df = pd.DataFrame({
-        "timestamp": ["2025-10-09T12:00:00Z", "2025-10-09T12:05:00Z"],
-        "city": ["Paris", "Lyon"],
-        "temperature": [20.001, 19.999],
-        "humidity": [55, 60],
+        "A": [1, 4],
+        "B": [2, 9],   # ignored column
+        "C": [3, 6],
     })
     return df
 ```
 
-This test compares DataFrames with numerical tolerance and ignored
-columns.
+**Passes when:** - Ignored columns differ (`B`), but all other columns
+match.
 
-**Requires:** `pip install pytest-verify[pandas]`
+**Fails when:** - Non-ignored columns differ or structure changes.
 
 ---
 
-### NumPy Array Example
+2.  **Numeric tolerance**
+
+``` python
+import pandas as pd
+from pytest_verify import verify_snapshot
+
+@verify_snapshot(abs_tol=0.02)
+def test_dataframe_tolerance():
+    df = pd.DataFrame({
+        "A": [1.00, 3.00],
+        "B": [2.00, 4.00],
+    })
+    return df
+```
+
+**Passes when:** - Numeric differences between runs are within tolerance
+(≤ 0.02).
+
+**Fails when:** - Numeric difference exceeds tolerance (e.g. 0.0001).
+
+---
+
+## NumPy Array Examples
+
+1.  **Numeric tolerance**
 
 ``` python
 import numpy as np
 from pytest_verify import verify_snapshot
 
-@verify_snapshot(abs_tol=1e-4, rel_tol=1e-4)
-def test_numpy_snapshot():
-    return np.array([[1.0001, 2.0001], [3.0002, 4.0003]])
+@verify_snapshot(abs_tol=0.01)
+def test_numpy_array_tolerance():
+    return np.array([[1.001, 2.0, 3.0]])
 ```
 
-**Requires:** `pip install pytest-verify[numpy]`
+**Passes when:** - Element-wise numeric differences are within 0.01.
+
+**Fails when:** - Differences exceed tolerance.
+
+---
+
+2.  **Type mismatch**
+
+``` python
+import numpy as np
+from pytest_verify import verify_snapshot
+
+@verify_snapshot()
+def test_numpy_array_type_mismatch():
+    return np.array([["1", "2", "3"]], dtype=object)
+```
+
+**Passes when:** - Element types match expected (e.g. all numeric).
+
+**Fails when:** - Element types differ (e.g. numeric vs string).
+
+---
+
+3.  **Missing values**
+
+``` python
+import numpy as np
+from pytest_verify import verify_snapshot
+
+@verify_snapshot()
+def test_numpy_array_with_none():
+    return np.array([[1, None, 3]], dtype=object)
+```
+
+**Passes when:** - Missing values (<span class="title-ref">None</span> /
+<span class="title-ref">NaN</span>) are in the same positions.
+
+**Fails when:** - Missing values occur in different positions or types
+differ.
 
 ---
 
 ## Behavior Summary
 
-| Step | Description |
-|----|----|
-| First run | Creates both <span class="title-ref">.expected</span> and <span class="title-ref">.actual</span> snapshots (identical) |
-| Later runs | Compares new output with existing <span class="title-ref">.expected</span> |
-| Match | ✅ Confirms match and updates snapshot |
-| Mismatch | ⚠️ Shows diff or opens visual viewer |
-| Accept changes | 📝 Updates <span class="title-ref">.expected</span> and saves a <span class="title-ref">.bak</span> backup |
+<table style="width:99%;">
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 65%" />
+<col style="width: 1%" />
+</colgroup>
+<thead>
+<tr>
+<th>Step</th>
+<th>Description</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>First run</strong></td>
+<td>Creates both <code>.expected</code> and <code>.actual</code>
+files.</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Subsequent runs</strong></td>
+<td>Compares new output with the saved snapshot.</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Match found</strong></td>
+<td colspan="2">✅ Snapshot confirmed and updated.</td>
+</tr>
+<tr>
+<td><strong>Mismatch detected</strong></td>
+<td>⚠️ Shows diff or opens visual viewer.</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Change accepted</strong></td>
+<td colspan="2">📝 Updates expected snapshot and keeps backup.</td>
+</tr>
+</tbody>
+</table>
 
 ---
 
 ## Visual Diff Viewer
 
-If installed via `[diff]`, pytest-verify automatically uses a visual
-diff viewer:
+When installed with `pytest-verify[diff]`, an interactive terminal-based
+diff viewer opens when snapshots differ.
 
-- Opens automatically when snapshots differ.
-- Allows reviewing and accepting/rejecting changes interactively.
-- Works entirely within the terminal — no external tools required.
-
-**Requires:** `pip install pytest-verify[diff]`
+- Highlights changes side-by-side in your terminal
+- Lets you accept or reject new snapshots
+- Works without any external tools
 
 ---
 
@@ -297,11 +366,11 @@ Local installation for development:
 
     pip install -e '.[all]'
 
-Run tests:
+Run the test suite:
 
     pytest -s
 
-Clean old snapshots:
+Clean generated snapshots:
 
     find . -name "*.actual.*" -delete
 
@@ -311,7 +380,9 @@ Clean old snapshots:
 
 Licensed under the **Apache License 2.0**.
 
+---
+
 ## Author
 
-**Mohamed Tahri** Email: <simotahri1@gmail.com> GitHub:
+**Mohamed Tahri** Email: `simotahri1@gmail.com` GitHub:
 <https://github.com/metahris/pytest-verify>

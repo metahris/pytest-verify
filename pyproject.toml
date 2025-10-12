@@ -16,7 +16,8 @@ license = { file = "LICENSE" }
 dependencies = [
     "pytest>=7.0",
     "click>=8.0",
-    "rich>=13.0"
+    "rich>=13.0",
+    "PyYAML>=6.0"
 ]
 
 keywords = ["pytest", "snapshot", "testing", "verify", "diff", "viewer"]

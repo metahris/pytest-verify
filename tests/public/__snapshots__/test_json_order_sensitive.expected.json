@@ -1,12 +1,14 @@
 {
-  "users": [
-    {
-      "id": 1,
-      "job_name": "get_price"
-    },
-    {
-      "id": 2,
-      "job_name": "get_delta"
-    }
+  "price": [
+    20.001,
+    19.999
+  ],
+  "product": [
+    "x",
+    "y"
+  ],
+  "timestamp": [
+    "2025-10-09T12:00:00Z",
+    "2025-10-09T12:05:00Z"
   ]
 }

@@ -28,8 +28,11 @@ def test_json_with_tolerances():
 def test_json_order_sensitive():
     """Fails if order of list elements changes."""
     return {
-        "users": [
-            {"id": 1, "job_name": "get_price"},
-            {"id": 2, "job_name": "get_delta"}
-        ]
+        "timestamp": [
+            "2025-10-09T12:00:00Z",
+            "2025-10-09T12:05:00Z"
+        ],
+        "product": ["x", "y"],
+        "price": [20.001, 19.999]
     }
+
