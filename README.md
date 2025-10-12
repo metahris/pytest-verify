@@ -34,9 +34,12 @@ Any pytest test that **returns a value** can be decorated with
 - On **subsequent runs**, it compares the new output with the expected
   snapshot.
 - If differences are detected, a diff is displayed (or the visual viewer
-  opens).
+  on terminal if installed)
 
----
+![screenshot](docs/images/test_simple_json_failed.png)
+
+🗨⚠️  Test FAILED, pytest-verify will ask whether to replace the expected.
+
 
 ## Text Example
 
