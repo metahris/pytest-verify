@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<sensors>
+	
+        
+	<sensor>
+		<temp>20.0</temp>
+	</sensor>
+	
+        
+	<sensor>
+		<temp>21.0</temp>
+	</sensor>
+	
+    
+</sensors>

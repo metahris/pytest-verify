@@ -4,7 +4,7 @@
 ensures your test outputs remain consistent across runs.
 
 It automatically saves and compares snapshots of your test results and
-can optionally launch a **visual diff viewer** for reviewing differences
+can launch a **visual diff viewer** for reviewing differences
 directly in your terminal.
 
 ---
@@ -14,14 +14,6 @@ directly in your terminal.
 Basic installation:
 
     pip install pytest-verify
-
-With optional diff viewer:
-
-    pip install pytest-verify[diff]
-
-The <span class="title-ref">\[diff\]</span> extra adds an enhanced
-terminal-based diff viewer for reviewing snapshot differences
-interactively.
 
 ---
 
@@ -33,15 +25,77 @@ Any pytest test that **returns a value** can be decorated with
 - On the **first run**, pytest-verify creates baseline snapshots.
 - On **subsequent runs**, it compares the new output with the expected
   snapshot.
-- If differences are detected, a diff is displayed (or the visual viewer
-  on terminal if installed)
+- If differences are detected, a diff is displayed:
 
 ![screenshot](docs/images/test_simple_json_failed.png)
 
 🗨⚠️  Test FAILED, pytest-verify will ask whether to replace the expected.
 
+💡 How This Works ?
+===================
 
-## Text Example
+``` python
+from pytest_verify import verify_snapshot
+
+
+@verify_snapshot(
+    ignore_fields=[
+        "$.user.profile.updated_at",
+        "$.devices[*].debug",
+        "$.sessions[*].events[*].meta.trace",
+    ],
+    abs_tol=0.05,
+    rel_tol=0.02,
+)
+def test_ignore_multiple_fields():
+    """
+      - Exact path:            $.user.profile.updated_at
+      - Array wildcard:        $.devices[*].debug
+      - Deep nested wildcard:  $.sessions[*].events[*].meta.trace
+    """
+    return {
+        "user": {
+            "id": 7,
+            "profile": {"updated_at": "2025-10-14T10:00:00Z", "age": 30},
+        },
+        "devices": [
+            {"id": "d1", "debug": "alpha", "temp": 20.0},
+            {"id": "d2", "debug": "beta", "temp": 20.1},
+        ],
+        "sessions": [
+            {"events": [{"meta": {"trace": "abc"}, "value": 10.0}]},
+            {"events": [{"meta": {"trace": "def"}, "value": 10.5}]},
+        ],
+    }
+```
+
+
+The decorator ``@verify_snapshot`` automatically performs the following steps:
+
+1. **Format Detection**  
+   Detects that the return value is a JSON snapshot (because the test returns a Python ``dict``).
+
+2. **Serialization**  
+   Serializes the result into a canonical, pretty-formatted JSON string.
+
+3. **Comparison**  
+   Compares the serialized result against the existing ``.expected.json`` snapshot file.
+
+
+5. **Baseline Creation**  
+   On the first test run, if no snapshot exists, a baseline file is created:
+
+   ::
+
+       __snapshots__/test_ignore_fields_complex.expected.json
+
+6. **Subsequent Runs**  
+   On later runs, the result is compared to the existing snapshot.
+   If differences occur outside the ignored fields or tolerance limits,
+   a unified diff is displayed in the terminal.
+
+
+## Examples
 
 ``` python
 from pytest_verify import verify_snapshot
@@ -58,15 +112,11 @@ snapshot. - Whitespace at the start or end of the string is ignored.
 
 ---
 
-## JSON Examples
-
-1.  **Ignore fields**
-
 ``` python
 from pytest_verify import verify_snapshot
-
+# ignore fields
 @verify_snapshot(ignore_fields=["id"])
-def test_json_ignore_fields():
+def test_ignore_fields():
     return {"id": 2, "name": "Mohamed"}
 ```
 
@@ -77,11 +127,10 @@ match.
 
 ---
 
-2.  **Numeric tolerance**
-
 ``` python
+# numeric tolerance
 @verify_snapshot(abs_tol=1e-3; rel_tol=1e-3)
-def test_json_with_tolerance():
+def test_with_tolerance():
     return {"value": 3.1416}
 ```
 
@@ -92,37 +141,21 @@ def test_json_with_tolerance():
 
 ---
 
-3.  **Nested structure (order-sensitive vs insensitive)**
-
 ``` python
-@verify_snapshot(ignore_order_json=False)
-def test_json_nested_structure_order_sensitive():
-    return {
-        "team": {
-            "members": [
-                {"name": "John", "role": "Developer"},
-                {"name": "Mary", "role": "Manager"}
-            ]
-        }
-    }
+# abs tol fields in json
+@verify_snapshot(abs_tol_fields = {"$.network.*.v": 1.0})
+def test_abs_tol_fields():
+    return '{"network": {"n1": {"v": 10}, "n2": {"v": 10}}}'
 ```
 
-**Passes when:** - The order of nested list elements (`members`) matches
-the snapshot.
+**Passes when:** - Numeric values of (`v`) differ within tolerance.
 
-**Fails when:** - The list order changes (e.g. `Mary` before `John`)
-while `ignore_order_json=False`.
-
-If you set `ignore_order_json=True`, this same test **passes** because
-list order is ignored.
+**Fails when:** - The numeric difference of (`v`) exceeds the allowed tolerance.
 
 ---
 
-## YAML Examples
-
-1.  **Order-sensitive**
-
 ``` python
+# yaml ignore order
 @verify_snapshot(ignore_order_yaml=False)
 def test_yaml_order_sensitive():
     return """
@@ -138,9 +171,8 @@ def test_yaml_order_sensitive():
 
 ---
 
-2.  **Ignore fields**
-
 ``` python
+# yanl ignore fields
 @verify_snapshot(ignore_fields=["age"])
 def test_yaml_ignore_fields():
     return """
@@ -157,9 +189,8 @@ def test_yaml_ignore_fields():
 
 ---
 
-3.  **Numeric tolerance**
-
 ``` python
+# numeric tolerance
 @verify_snapshot(abs_tol=0.02)
 def test_yaml_numeric_tolerance():
     return """
@@ -175,25 +206,24 @@ tolerance.
 
 ---
 
-## XML Examples
-
-1.  **Order-sensitive**
-
 ``` python
-@verify_snapshot(ignore_order_xml=False)
-def test_xml_order_sensitive():
-    return "<root><a>1</a><b>2</b></root>"
+@verify_snapshot(
+    abs_tol_fields={"$.metrics.accuracy": 0.05},
+    rel_tol_fields={"$.metrics.loss": 0.1},
+    ignore_order_yaml=True
+)
+def test_yaml_numeric_tolerances():
+    return """
+    metrics:
+      accuracy: 0.96
+      loss: 0.105
+      epoch: 10
+    """
 ```
 
-**Passes when:** - The element order matches the saved snapshot.
-
-**Fails when:** - Elements are swapped (e.g. `<b>2</b><a>1</a>`).
-
----
-
-2.  **Numeric tolerance**
 
 ``` python
+# xml numeric tolerance
 @verify_snapshot(abs_tol=0.02)
 def test_xml_numeric_tolerance():
     return "<metrics><score>99.96</score></metrics>"
@@ -205,14 +235,28 @@ def test_xml_numeric_tolerance():
 
 ---
 
-## Pandas DataFrame Examples
+``` python
+# xml numeric tolerance per field
+@verify_snapshot(abs_tol_fields={"//sensor/temp": 0.5})
+def test_xml_abs_tol_fields():
+    return """
+    <sensors>
+        <sensor><temp>20.0</temp></sensor>
+        <sensor><temp>21.0</temp></sensor>
+    </sensors>
+    """
+```
 
-1.  **Ignore columns**
+**Passes when:** - Numeric values of (`temp`) differ within tolerance.
+
+**Fails when:** - The numeric difference of (`temp`) exceeds the allowed tolerance.
+
 
 ``` python
 import pandas as pd
 from pytest_verify import verify_snapshot
 
+# ignore columns
 @verify_snapshot(ignore_columns=["B"])
 def test_dataframe_ignore_columns():
     df = pd.DataFrame({
@@ -229,8 +273,6 @@ match.
 **Fails when:** - Non-ignored columns differ or structure changes.
 
 ---
-
-2.  **Numeric tolerance**
 
 ``` python
 import pandas as pd
@@ -252,10 +294,6 @@ def test_dataframe_tolerance():
 
 ---
 
-## NumPy Array Examples
-
-1.  **Numeric tolerance**
-
 ``` python
 import numpy as np
 from pytest_verify import verify_snapshot
@@ -271,8 +309,6 @@ def test_numpy_array_tolerance():
 
 ---
 
-2.  **Type mismatch**
-
 ``` python
 import numpy as np
 from pytest_verify import verify_snapshot
@@ -287,8 +323,6 @@ def test_numpy_array_type_mismatch():
 **Fails when:** - Element types differ (e.g. numeric vs string).
 
 ---
-
-3.  **Missing values**
 
 ``` python
 import numpy as np
@@ -340,7 +374,7 @@ files.</td>
 </tr>
 <tr>
 <td><strong>Mismatch detected</strong></td>
-<td>⚠️ Shows diff or opens visual viewer.</td>
+<td>⚠️ Shows diff on terminal.</td>
 <td></td>
 </tr>
 <tr>
@@ -352,17 +386,6 @@ files.</td>
 
 ---
 
-## Visual Diff Viewer
-
-When installed with `pytest-verify[diff]`, an interactive terminal-based
-diff viewer opens when snapshots differ.
-
-- Highlights changes side-by-side in your terminal
-- Lets you accept or reject new snapshots
-- Works without any external tools
-
----
-
 ## Developer Notes
 
 Local installation for development:
@@ -371,11 +394,7 @@ Local installation for development:
 
 Run the test suite:
 
-    pytest -s
-
-Clean generated snapshots:
-
-    find . -name "*.actual.*" -delete
+    pytest -v -s
 
 ---
 

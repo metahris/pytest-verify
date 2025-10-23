@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-verify"
-version = "1.0.0"
+version = "1.1.0"
 description = "A pytest plugin for snapshot verification with optional visual diff viewer."
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
@@ -14,10 +14,11 @@ requires-python = ">=3.9"
 license = { file = "LICENSE" }
 
 dependencies = [
-    "pytest>=7.0",
     "click>=8.0",
     "rich>=13.0",
-    "PyYAML>=6.0"
+    "PyYAML>=6.0",
+    "dictlens",
+    "xmllens"
 ]
 
 keywords = ["pytest", "snapshot", "testing", "verify", "diff", "viewer"]
@@ -60,7 +61,6 @@ addopts = "-v"
 testpaths = ["tests"]
 
 [project.optional-dependencies]
-diff = ["verify-diff-viewer>=0.1.0"]
 pydantic = ["pydantic>=2.0,<3.0"]
 numpy = ["numpy>=1.24"]
 pandas = ["pandas>=2.0"]
@@ -70,7 +70,6 @@ data = [
     "pydantic>=2.0"
 ]
 all = [
-    "verify-diff-viewer>=0.1.0",
     "pydantic>=2.0,<3.0",
     "numpy>=1.24",
     "pandas>=2.0"

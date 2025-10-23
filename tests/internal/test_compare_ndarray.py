@@ -1,4 +1,3 @@
-import numpy as np
 import json
 
 from pytest_verify.plugin import _compare_ndarray

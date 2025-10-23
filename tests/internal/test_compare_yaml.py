@@ -43,10 +43,10 @@ def test_compare_yaml_ignore_fields():
       city: Paris
     """
     # Should ignore 'age' field difference
-    assert _compare_yaml(old, new, ignore_fields=["age"])
+    assert _compare_yaml(old, new, ignore_fields=["$.person.age"], show_debug=True)
 
     # Should fail if 'age' is not ignored
-    assert not _compare_yaml(old, new, ignore_fields=[])
+    assert not _compare_yaml(old, new)
 
 def test_compare_yaml_nested_structure():
     old = """

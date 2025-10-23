@@ -1,0 +1,4 @@
+metrics:
+  accuracy: 0.96
+  epoch: 10
+  loss: 0.105

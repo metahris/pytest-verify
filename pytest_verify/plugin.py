@@ -5,18 +5,19 @@ import datetime
 import difflib
 import inspect
 import json
-import math
 import shutil
-import subprocess
 import xml.dom.minidom
-import xml.etree.ElementTree as ET
 from functools import wraps
 from pathlib import Path
+from typing import Dict, List
 
 import click
+import pytest
 import yaml
+from dictlens import compare_dicts
 from rich.console import Console
 from rich.syntax import Syntax
+from xmllens import compare_xml
 
 # Optional dependencies
 try:
@@ -179,8 +180,58 @@ def _ask_to_replace(path: Path) -> bool:
 
 # ========== DIFF VIEWERS ========== #
 
-def _show_diff_python(old: str, new: str, expected_path: Path, actual_path: Path):
-    """Display unified diff between expected and actual snapshots."""
+def _show_diff(old: str, new: str, expected_path: Path, actual_path: Path, fmt: str = "txt"):
+    """Display rich diff between expected and actual snapshots with structured support."""
+
+    try:
+        if fmt in {"json", "yaml"}:
+            # Pretty print structured JSON/YAML data
+            old_data = json.dumps(json.loads(old), indent=2, sort_keys=True)
+            new_data = json.dumps(json.loads(new), indent=2, sort_keys=True)
+            console.rule("[bold red]Expected[/bold red]")
+            console.print(Syntax(old_data, "json", theme="ansi_dark", line_numbers=True))
+            console.rule("[bold green]Actual[/bold green]")
+            console.print(Syntax(new_data, "json", theme="ansi_dark", line_numbers=True))
+            console.rule("[bold yellow]End of diff[/bold yellow]")
+            return
+
+        elif fmt == "xml":
+
+            def _pretty_xml(text: str) -> str:
+                try:
+                    return xml.dom.minidom.parseString(text).toprettyxml()
+                except Exception:
+                    return text
+
+            old_pretty = _pretty_xml(old)
+            new_pretty = _pretty_xml(new)
+            # Compute diff line by line
+            diff = list(difflib.unified_diff(
+                old_pretty.splitlines(),
+                new_pretty.splitlines(),
+                fromfile=f"{expected_path.name} (expected)",
+                tofile=f"{actual_path.name} (actual)",
+                lineterm=""
+            ))
+            if diff:
+                console.rule("[bold red]XML Diff[/bold red]")
+                diff_text = "\n".join(diff)
+                console.print(Syntax(diff_text, "diff", theme="ansi_dark", line_numbers=True))
+            else:
+                # fallback — print both if somehow identical structurally but flagged different
+                console.rule("[bold red]Expected XML[/bold red]")
+                console.print(Syntax(old_pretty, "xml", theme="ansi_dark", line_numbers=True))
+                console.rule("[bold green]Actual XML[/bold green]")
+                console.print(Syntax(new_pretty, "xml", theme="ansi_dark", line_numbers=True))
+            console.rule("[bold yellow]End of diff[/bold yellow]")
+            return
+
+
+    except Exception:
+        # Fallback to raw diff for unexpected cases
+        pass
+
+    # Default: unified diff for text/unstructured formats
     diff = difflib.unified_diff(
         old.splitlines(),
         new.splitlines(),
@@ -191,24 +242,6 @@ def _show_diff_python(old: str, new: str, expected_path: Path, actual_path: Path
     diff_text = "\n".join(diff)
     syntax = Syntax(diff_text, "diff", theme="ansi_dark")
     console.print(syntax)
-
-
-def _run_rust_diff(expected: Path, actual: Path) -> bool | None:
-    """
-    Try to run the Rust diff viewer if installed.
-    Returns:
-      True  → user accepted (exit code 0)
-      False → user rejected (exit code 1)
-      None  → viewer not available, use fallback
-    """
-    exe = shutil.which("verify-diff-bin")
-    if not exe:
-        return None
-    try:
-        result = subprocess.run([exe, str(expected), str(actual)])
-        return result.returncode == 0
-    except Exception:
-        return None
 
 
 # ========== COMPARERS ========== #
@@ -224,62 +257,33 @@ def _register_comparer(fmt):
     return decorator
 
 
-@_register_comparer("json")
+@_register_comparer('json')
 def _compare_json(
-        old: str,
-        new: str,
+        left: str,
+        right: str,
         *,
-        ignore_fields=None,
-        abs_tol=None,
-        rel_tol=None,
-        ignore_order_json=True,
+        ignore_fields: List[str] = None,
+        abs_tol: float = 0.0,
+        rel_tol: float = 0.0,
+        abs_tol_fields: Dict[str, float] = None,
+        rel_tol_fields: Dict[str, float] = None,
+        epsilon: float = 1e-12,
+        show_debug: bool = False,
+        **_,
 ) -> bool:
-    """Compare JSON structures with optional field ignores, numeric tolerance, and array order control."""
-
-    ignore_fields = ignore_fields or []
-    abs_tol = abs_tol or 0
-    rel_tol = rel_tol or 0
-
-    def _is_number(v):
-        try:
-            float(v)
-            return True
-        except (ValueError, TypeError):
-            return False
-
-    def _remove_ignored(obj):
-        if isinstance(obj, dict):
-            return {k: _remove_ignored(v) for k, v in obj.items() if k not in ignore_fields}
-        if isinstance(obj, list):
-            return [_remove_ignored(i) for i in obj]
-        return obj
-
-    def _deep_compare(a, b):
-        if type(a) != type(b):
-            return False
-
-        if isinstance(a, dict):
-            if a.keys() != b.keys():
-                return False
-            return all(_deep_compare(a[k], b[k]) for k in a)
-
-        if isinstance(a, list):
-            if len(a) != len(b):
-                return False
-            if ignore_order_json:
-                # Ignore list order
-                return sorted(a, key=lambda x: str(x)) == sorted(b, key=lambda x: str(x))
-            return all(_deep_compare(x, y) for x, y in zip(a, b))
-
-        if _is_number(a) and _is_number(b):
-            return math.isclose(float(a), float(b), abs_tol=abs_tol, rel_tol=rel_tol)
-
-        return a == b
-
-    old_obj = json.loads(old)
-    new_obj = json.loads(new)
-
-    return _deep_compare(_remove_ignored(old_obj), _remove_ignored(new_obj))
+    left_obj = json.loads(left)
+    right_obj = json.loads(right)
+    return compare_dicts(
+        left=left_obj,
+        right=right_obj,
+        ignore_fields=ignore_fields,
+        abs_tol=abs_tol,
+        rel_tol=rel_tol,
+        abs_tol_fields=abs_tol_fields,
+        rel_tol_fields=rel_tol_fields,
+        epsilon=epsilon,
+        show_debug=show_debug
+    )
 
 
 @_register_comparer("txt")
@@ -297,84 +301,51 @@ def _compare_xml(
         old: str,
         new: str,
         *,
-        ignore_fields=None,
-        abs_tol=None,
-        rel_tol=None,
-        ignore_order_xml=True,
+        ignore_fields: List[str] = None,
+        abs_tol: float = 0.0,
+        rel_tol: float = 0.0,
+        abs_tol_fields: Dict[str, float] = None,
+        rel_tol_fields: Dict[str, float] = None,
+        epsilon: float = 1e-12,
+        show_debug: bool = False,
+        **_,
 ) -> bool:
-    """Compare XML documents structurally with tolerance, ignored fields, and optional order control."""
+    """Compare XML documents structurally with per-field numeric tolerances using XPath."""
 
-    ignore_fields = set(ignore_fields or [])
-    abs_tol = abs_tol or 0
-    rel_tol = rel_tol or 0
-
-    def _is_number(v):
-        try:
-            float(v)
-            return True
-        except (ValueError, TypeError):
-            return False
-
-    def _compare_txt(a, b):
-        if _is_number(a) and _is_number(b):
-            return math.isclose(float(a), float(b), abs_tol=abs_tol, rel_tol=rel_tol)
-        return (a or "").strip() == (b or "").strip()
-
-    def _compare_elements(e1, e2):
-        if e1.tag in ignore_fields or e2.tag in ignore_fields:
-            return True
-        if e1.tag != e2.tag:
-            return False
-
-        # Compare attributes (unordered)
-        attrs1 = {k: v for k, v in e1.attrib.items() if k not in ignore_fields}
-        attrs2 = {k: v for k, v in e2.attrib.items() if k not in ignore_fields}
-        if attrs1.keys() != attrs2.keys():
-            return False
-        for k in attrs1:
-            if not _compare_txt(attrs1[k], attrs2[k]):
-                return False
-
-        # Compare text
-        if not _compare_txt(e1.text or "", e2.text or ""):
-            return False
-
-        # Compare children
-        c1, c2 = list(e1), list(e2)
-        if len(c1) != len(c2):
-            return False
-        if ignore_order_xml:
-            def key_fn(el): return el.tag, tuple(sorted(el.attrib.items()))
-
-            c1.sort(key=key_fn)
-            c2.sort(key=key_fn)
-        for child1, child2 in zip(c1, c2):
-            if not _compare_elements(child1, child2):
-                return False
-
-        if not _compare_txt(e1.tail or "", e2.tail or ""):
-            return False
-        return True
-
-    try:
-        root1 = ET.fromstring(old)
-        root2 = ET.fromstring(new)
-    except ET.ParseError:
-        return old.strip() == new.strip()
-
-    return _compare_elements(root1, root2)
+    return compare_xml(
+        xml_a=old,
+        xml_b=new,
+        ignore_fields=ignore_fields,
+        abs_tol=abs_tol,
+        rel_tol=rel_tol,
+        abs_tol_fields=abs_tol_fields,
+        rel_tol_fields=rel_tol_fields,
+        epsilon=epsilon,
+        show_debug=show_debug
+    )
 
 
 @_register_comparer("pydantic")
 def _compare_pydantic(old: str, new: str, **kwargs):
-    """Compare two Pydantic model snapshots as JSON."""
-    return _compare_json(old, new, **kwargs)
+    """Compare two Pydantic model snapshots serialized as JSON strings."""
+    try:
+        old_obj = json.loads(old)
+        new_obj = json.loads(new)
+    except Exception:
+        return old.strip() == new.strip()
+    return compare_dicts(old_obj, new_obj, **kwargs)
 
 
 @_register_comparer("dataclass")
 def _compare_dataclass(old: str, new: str, **kwargs):
-    """Compare dataclass snapshots as JSON."""
-    return _compare_json(old, new, **kwargs)
+    """Compare dataclass snapshots as JSON strings (parsed before comparison)."""
+    try:
+        old_obj = json.loads(old)
+        new_obj = json.loads(new)
+    except Exception:
+        # fallback: if they’re not JSON, compare raw text
+        return old.strip() == new.strip()
+    return compare_dicts(old_obj, new_obj, **kwargs)
 
 
 @_register_comparer("ndarray")
@@ -422,7 +393,6 @@ def _compare_ndarray(old: str, new: str, *, abs_tol=None, rel_tol=None, **_):
                 return False
 
     return True
-
 
 
 @_register_comparer("dataframe")
@@ -533,12 +503,13 @@ def _compare_yaml(old: str, new: str, *, ignore_order_yaml=False, **kwargs):
     old_json = json.dumps(old_sorted, indent=2, sort_keys=True, default=default_serializer)
     new_json = json.dumps(new_sorted, indent=2, sort_keys=True, default=default_serializer)
 
-    return _compare_json(old=old_json, new=new_json, ignore_order_json=ignore_order_yaml, **kwargs)
+    return _compare_json(left=old_json, right=new_json, **kwargs)
 
 
 def _compare_snapshots(old, new, fmt, **kwargs) -> bool:
     """Delegate comparison to the appropriate comparer."""
     comparer = _COMPARERS.get(fmt)
+
     if not comparer:
         console.print(f"[yellow]⚠️ No comparer for format '{fmt}', using text fallback[/yellow]")
         comparer = _compare_text
@@ -554,51 +525,62 @@ def _compare_snapshots(old, new, fmt, **kwargs) -> bool:
 
 def verify_snapshot(
         snapshot_name: str | None = None,
-        dir: str = "__snapshots__",  # default name for snapshot subfolder
+        dir: str = "__snapshots__",
         *,
         ignore_fields: list[str] | None = None,
         ignore_columns: list[str] | None = None,
-        abs_tol: float | None = None,
-        rel_tol: float | None = None,
-        ignore_order_json: bool = True,
-        ignore_order_xml: bool = True,
-        ignore_order_yaml: bool = True
+        abs_tol: float = 0.0,
+        rel_tol: float = 0.0,
+        abs_tol_fields: Dict[str, float] | None = None,
+        rel_tol_fields: Dict[str, float] | None = None,
+        epsilon: float = 1e-12,
+        ignore_order_yaml: bool = True,
+        show_debug: bool = False,
 ):
     """
     Decorator that saves and compares test results as snapshots.
-    Snapshots are stored in a `__snapshots__` folder located
-    next to the test file that defines the test function.
+
+    Exposes full control over structured comparison logic from dictlens/xmllens:
+      - ignore_fields: list of JSONPath/XPath patterns to skip
+      - abs_tol, rel_tol: global numeric tolerances
+      - abs_tol_fields, rel_tol_fields: per-field tolerances
+      - epsilon: minimal float threshold
+      - ignore_columns: for DataFrame-based comparisons
+      - ignore_order_yaml: allow unordered YAML comparison
+      - show_debug: verbose debugging output
+
+    On mismatch, prompts to update or keep the snapshot.
     """
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # === Run test and serialize result ===
+            # Run the actual test and get the result
             result = func(*args, **kwargs)
+
+            # Detect format and serialize
             fmt = _detect_format(result)
             content = _serialize_result(result, fmt)
 
-            # === Determine test file location ===
+            # Determine snapshot paths
             test_file_path = Path(inspect.getfile(func)).resolve()
             snapshot_dir = test_file_path.parent / dir
             snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-            # === Compute snapshot paths ===
             name = snapshot_name or func.__name__
             expected_path, actual_path = _get_snapshot_paths(name, fmt, snapshot_dir)
 
-            # === First run: create baseline ===
+            # First run → create baseline
             if not expected_path.exists():
                 _save_snapshot(expected_path, content)
                 _save_snapshot(actual_path, content)
-                console.print(f"📸 First run → Created baseline snapshots for [bold]{name}[/bold]")
-                return result
+                console.print(f"📸 First run → Created baseline for [bold]{name}[/bold]")
+                return
 
-            # === Load expected + save new actual ===
+            # Load and compare
             expected_content = _load_snapshot(expected_path)
             _save_snapshot(actual_path, content)
 
-            # === Compare snapshots ===
             matches = _compare_snapshots(
                 expected_content,
                 content,
@@ -607,49 +589,36 @@ def verify_snapshot(
                 ignore_columns=ignore_columns,
                 abs_tol=abs_tol,
                 rel_tol=rel_tol,
-                ignore_order_json=ignore_order_json,
-                ignore_order_xml=ignore_order_xml,
+                abs_tol_fields=abs_tol_fields,
+                rel_tol_fields=rel_tol_fields,
+                epsilon=epsilon,
+                ignore_order_yaml=ignore_order_yaml,
+                show_debug=show_debug,
             )
 
-            # === If matches ===
+            # Match → OK
             if matches:
                 console.print(f"✅ Snapshot matches: [green]{expected_path}[/green]")
-                _save_snapshot(expected_path, content)
-                return result
+                return
 
-            # === Mismatch detected ===
+            # Mismatch
             console.print(f"⚠️ Snapshot mismatch detected for [bold]{name}[/bold]")
-
-            # Try Rust diff viewer first
-            rust_result = _run_rust_diff(expected_path, actual_path)
-
-            if rust_result:
-                _backup_expected(expected_path)
-                _save_snapshot(expected_path, content)
-                console.print(f"📝 Snapshot updated → {expected_path}")
-                return result
-
-            elif rust_result is False:
-                console.print(f"❌ Changes rejected by user for {expected_path}")
-                raise AssertionError(f"Snapshot mismatch for {expected_path}")
-
-            # === Fallback to Python diff ===
-            _show_diff_python(
+            _show_diff(
                 expected_content.decode("utf-8") if isinstance(expected_content, bytes) else expected_content,
                 content.decode("utf-8") if isinstance(content, bytes) else content,
                 expected_path,
-                actual_path
+                actual_path,
+                fmt
             )
 
+            # ask to replace snapshot
             if _ask_to_replace(expected_path):
                 _backup_expected(expected_path)
                 _save_snapshot(expected_path, content)
                 console.print(f"📝 Snapshot updated → {expected_path}")
             else:
                 console.print(f"❌ Mismatch kept. Review: {expected_path} and {actual_path}")
-                raise AssertionError(f"Snapshot mismatch for {expected_path}")
-
-            return result
+                pytest.fail(f"Snapshot mismatch for {expected_path}", pytrace=False)
 
         return wrapper
 

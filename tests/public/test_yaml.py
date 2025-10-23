@@ -19,3 +19,17 @@ def test_yaml_ignore_list_order():
       - do: f(x)
       - do: f'(x)
     """
+
+
+@verify_snapshot(
+    abs_tol_fields={"$.metrics.accuracy": 0.05},
+    rel_tol_fields={"$.metrics.loss": 0.1},
+    ignore_order_yaml=True
+)
+def test_yaml_numeric_tolerances():
+    return """
+    metrics:
+      accuracy: 0.96
+      loss: 0.105
+      epoch: 10
+    """

@@ -7,7 +7,7 @@ def test_basic_xml_snapshot():
     return "<user><name>Mohamed</name><age>28</age></user>"
 
 
-@verify_snapshot(ignore_order_xml=False)
+@verify_snapshot()
 def test_order_sensitive_xml_snapshot():
     """Ensures XML order sensitivity works when disabled."""
     return """
@@ -29,4 +29,14 @@ def test_xml_with_numeric_tolerance():
         <temperature value="20.001" unit="C"/>
         <pressure>101.325</pressure>
     </measurements>
+    """
+
+
+@verify_snapshot(abs_tol_fields={"//sensor/temp": 0.5})
+def test_xml_abs_tol_fields():
+    return """
+    <sensors>
+        <sensor><temp>20.0</temp></sensor>
+        <sensor><temp>21.0</temp></sensor>
+    </sensors>
     """
