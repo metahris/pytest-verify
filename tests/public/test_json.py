@@ -13,7 +13,7 @@ def test_json_with_ignore_fields():
     return """
     {
         "Job": "get_price",
-        "price": "1004",
+        "price": "100",
         "duration": "20s",
         "timestamp": "2025-10-09T12:00:00Z"
     }
