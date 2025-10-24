@@ -181,17 +181,28 @@ def _ask_to_replace(path: Path) -> bool:
 # ========== DIFF VIEWERS ========== #
 
 def _show_diff(old: str, new: str, expected_path: Path, actual_path: Path, fmt: str = "txt"):
-    """Display rich diff between expected and actual snapshots with structured support."""
+    """Display unified diff between expected and actual snapshots with rich syntax highlighting."""
 
     try:
         if fmt in {"json", "yaml"}:
-            # Pretty print structured JSON/YAML data
+            # Normalize JSON/YAML formatting before diff
             old_data = json.dumps(json.loads(old), indent=2, sort_keys=True)
             new_data = json.dumps(json.loads(new), indent=2, sort_keys=True)
-            console.rule("[bold red]Expected[/bold red]")
-            console.print(Syntax(old_data, "json", theme="ansi_dark", line_numbers=True))
-            console.rule("[bold green]Actual[/bold green]")
-            console.print(Syntax(new_data, "json", theme="ansi_dark", line_numbers=True))
+
+            diff = list(difflib.unified_diff(
+                old_data.splitlines(),
+                new_data.splitlines(),
+                fromfile=f"{expected_path.name} (expected)",
+                tofile=f"{actual_path.name} (actual)",
+                lineterm=""
+            ))
+
+            if diff:
+                console.rule(f"[bold red]{fmt.upper()} Diff[/bold red]")
+                diff_text = "\n".join(diff)
+                console.print(Syntax(diff_text, "diff", theme="ansi_dark", line_numbers=True))
+            else:
+                console.print(f"[green]No differences found in {fmt.upper()} snapshot[/green]")
             console.rule("[bold yellow]End of diff[/bold yellow]")
             return
 
@@ -205,7 +216,6 @@ def _show_diff(old: str, new: str, expected_path: Path, actual_path: Path, fmt: 
 
             old_pretty = _pretty_xml(old)
             new_pretty = _pretty_xml(new)
-            # Compute diff line by line
             diff = list(difflib.unified_diff(
                 old_pretty.splitlines(),
                 new_pretty.splitlines(),
@@ -213,25 +223,21 @@ def _show_diff(old: str, new: str, expected_path: Path, actual_path: Path, fmt: 
                 tofile=f"{actual_path.name} (actual)",
                 lineterm=""
             ))
+
             if diff:
                 console.rule("[bold red]XML Diff[/bold red]")
                 diff_text = "\n".join(diff)
                 console.print(Syntax(diff_text, "diff", theme="ansi_dark", line_numbers=True))
             else:
-                # fallback — print both if somehow identical structurally but flagged different
-                console.rule("[bold red]Expected XML[/bold red]")
-                console.print(Syntax(old_pretty, "xml", theme="ansi_dark", line_numbers=True))
-                console.rule("[bold green]Actual XML[/bold green]")
-                console.print(Syntax(new_pretty, "xml", theme="ansi_dark", line_numbers=True))
+                console.print("[green]No differences found in XML snapshot[/green]")
             console.rule("[bold yellow]End of diff[/bold yellow]")
             return
 
-
     except Exception:
-        # Fallback to raw diff for unexpected cases
+        # fallback to raw text diff if something unexpected happens
         pass
 
-    # Default: unified diff for text/unstructured formats
+    # Default unified diff for text/unstructured formats
     diff = difflib.unified_diff(
         old.splitlines(),
         new.splitlines(),
@@ -240,8 +246,9 @@ def _show_diff(old: str, new: str, expected_path: Path, actual_path: Path, fmt: 
         lineterm=""
     )
     diff_text = "\n".join(diff)
-    syntax = Syntax(diff_text, "diff", theme="ansi_dark")
-    console.print(syntax)
+    console.rule("[bold red]Text Diff[/bold red]")
+    console.print(Syntax(diff_text, "diff", theme="ansi_dark"))
+    console.rule("[bold yellow]End of diff[/bold yellow]")
 
 
 # ========== COMPARERS ========== #
