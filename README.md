@@ -1,4 +1,9 @@
 # pytest-verify
+[![PyPI version](https://badge.fury.io/py/pytest-verify.svg)](https://pypi.org/project/pytest-verify/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/pytest-verify.svg)](https://pypi.org/project/pytest-verify/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Downloads](https://static.pepy.tech/badge/pytest-verify)](https://pepy.tech/project/pytest-verify)
+[![Build Status](https://github.com/metahris/pytest-verify/actions/workflows/run_tests.yml/badge.svg)](https://github.com/metahris/pytest-verify/actions)
 
 **pytest-verify** is a snapshot testing plugin for **pytest** that
 ensures your test outputs remain consistent across runs.
