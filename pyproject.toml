@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-verify"
-version = "1.1.1"
+version = "1.2.0"
 description = "A pytest plugin for snapshot verification with optional visual diff viewer."
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
@@ -69,8 +69,15 @@ data = [
     "numpy>=1.24",
     "pydantic>=2.0"
 ]
+
+# async support
+async = [
+    "pytest-asyncio>=0.23",
+]
+
 all = [
     "pydantic>=2.0,<3.0",
     "numpy>=1.24",
-    "pandas>=2.0"
+    "pandas>=2.0",
+    "pytest-asyncio>=0.23"
 ]

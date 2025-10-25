@@ -346,6 +346,85 @@ differ.
 
 ---
 
+## Async Test Support
+
+``pytest-verify`` supports asynchronous (``async def``) test functions in addition to normal synchronous tests.
+
+To enable this feature, you need to install the optional ``async extra``:
+
+    pip install pytest-verify[async]
+
+This will install ``pytest-asyncio`` as a test runner integration, allowing ``pytest`` to automatically await async tests.
+
+### Basic Example
+
+``` python
+
+import pytest
+from pytest_verify import verify_snapshot
+
+@pytest.mark.asyncio
+@verify_snapshot()
+async def test_async_snapshot():
+    await asyncio.sleep(0.01)
+    return {"status": "ok", "value": 42}
+```
+
+### Automatic Async Mode
+
+If you prefer not to use the ``@pytest.mark.asyncio`` decorator on every async test,
+you can configure pytest to automatically handle async functions.
+
+Add the following to your ``pytest.ini`` file:
+``` ini
+[pytest]
+asyncio_mode = auto
+```
+With this setting, async tests work transparently without additional decorators:
+``` python
+
+from pytest_verify import verify_snapshot
+
+@verify_snapshot()
+async def test_async_auto_mode():
+    return {"async": True, "auto_mode": "enabled"}
+``` 
+Coexistence with Sync Tests
+---------------------------
+
+``pytest-verify`` handles both synchronous and asynchronous tests seamlessly.
+
+You can mix both types within the same test suite:
+
+``` python
+
+@verify_snapshot()
+def test_sync_snapshot():
+    return {"type": "sync"}
+
+@pytest.mark.asyncio
+@verify_snapshot()
+async def test_async_snapshot():
+    return {"type": "async"}
+``` 
+Tips
+----
+
+* Use ``ignore_fields`` and numeric tolerances (``abs_tol``, ``rel_tol``) exactly as in sync tests.
+* If you see the message:
+
+  ``You need to install a suitable plugin for your async framework``
+
+  it means that no async runner (e.g. ``pytest-asyncio``) is installed.  
+  Fix it by installing the async extra:
+
+```bash
+pip install pytest-verify[async]
+```
+``pytest-verify`` automatically detects whether a test is asynchronous and awaits it safely,
+ensuring consistent snapshot creation and comparison across both sync and async workflows.
+
+
 ## Behavior Summary
 
 <table style="width:99%;">

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import datetime
 import difflib
@@ -531,45 +532,41 @@ def _compare_snapshots(old, new, fmt, **kwargs) -> bool:
 # ========== VERIFY ========== #
 
 def verify_snapshot(
-        snapshot_name: str | None = None,
-        dir: str = "__snapshots__",
-        *,
-        ignore_fields: list[str] | None = None,
-        ignore_columns: list[str] | None = None,
-        abs_tol: float = 0.0,
-        rel_tol: float = 0.0,
-        abs_tol_fields: Dict[str, float] | None = None,
-        rel_tol_fields: Dict[str, float] | None = None,
-        epsilon: float = 1e-12,
-        ignore_order_yaml: bool = True,
-        show_debug: bool = False,
+    snapshot_name: str | None = None,
+    dir: str = "__snapshots__",
+    *,
+    ignore_fields: list[str] | None = None,
+    ignore_columns: list[str] | None = None,
+    abs_tol: float = 0.0,
+    rel_tol: float = 0.0,
+    abs_tol_fields: Dict[str, float] | None = None,
+    rel_tol_fields: Dict[str, float] | None = None,
+    epsilon: float = 1e-12,
+    ignore_order_yaml: bool = True,
+    show_debug: bool = False,
 ):
     """
     Decorator that saves and compares test results as snapshots.
 
-    Exposes full control over structured comparison logic from dictlens/xmllens:
-      - ignore_fields: list of JSONPath/XPath patterns to skip
-      - abs_tol, rel_tol: global numeric tolerances
-      - abs_tol_fields, rel_tol_fields: per-field tolerances
-      - epsilon: minimal float threshold
-      - ignore_columns: for DataFrame-based comparisons
-      - ignore_order_yaml: allow unordered YAML comparison
-      - show_debug: verbose debugging output
-
-    On mismatch, prompts to update or keep the snapshot.
+    ✅ Supports both synchronous and asynchronous tests transparently.
     """
 
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Run the actual test and get the result
-            result = func(*args, **kwargs)
+        is_async = inspect.iscoroutinefunction(func)
 
-            # Detect format and serialize
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            # --- 1 Run the test and await if needed ---
+            result = await func(*args, **kwargs) if is_async else func(*args, **kwargs)
+
+            # --- 2 Handle double coroutine case ---
+            if inspect.iscoroutine(result):
+                result = await result
+
+            # --- 3 Continue with standard snapshot logic ---
             fmt = _detect_format(result)
             content = _serialize_result(result, fmt)
 
-            # Determine snapshot paths
             test_file_path = Path(inspect.getfile(func)).resolve()
             snapshot_dir = test_file_path.parent / dir
             snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -577,14 +574,12 @@ def verify_snapshot(
             name = snapshot_name or func.__name__
             expected_path, actual_path = _get_snapshot_paths(name, fmt, snapshot_dir)
 
-            # First run → create baseline
             if not expected_path.exists():
                 _save_snapshot(expected_path, content)
                 _save_snapshot(actual_path, content)
                 console.print(f"📸 First run → Created baseline for [bold]{name}[/bold]")
                 return
 
-            # Load and compare
             expected_content = _load_snapshot(expected_path)
             _save_snapshot(actual_path, content)
 
@@ -603,22 +598,19 @@ def verify_snapshot(
                 show_debug=show_debug,
             )
 
-            # Match → OK
             if matches:
                 console.print(f"✅ Snapshot matches: [green]{expected_path}[/green]")
                 return
 
-            # Mismatch
             console.print(f"⚠️ Snapshot mismatch detected for [bold]{name}[/bold]")
             _show_diff(
                 expected_content.decode("utf-8") if isinstance(expected_content, bytes) else expected_content,
                 content.decode("utf-8") if isinstance(content, bytes) else content,
                 expected_path,
                 actual_path,
-                fmt
+                fmt,
             )
 
-            # ask to replace snapshot
             if _ask_to_replace(expected_path):
                 _backup_expected(expected_path)
                 _save_snapshot(expected_path, content)
@@ -627,6 +619,13 @@ def verify_snapshot(
                 console.print(f"❌ Mismatch kept. Review: {expected_path} and {actual_path}")
                 pytest.fail(f"Snapshot mismatch for {expected_path}", pytrace=False)
 
-        return wrapper
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(async_wrapper(*args, **kwargs))
+
+        # Return appropriate wrapper
+        return async_wrapper if is_async else sync_wrapper
 
     return decorator
+
